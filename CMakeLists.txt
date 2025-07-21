@@ -15,15 +15,12 @@ add_library(snakegame
 
 target_include_directories(snakegame PUBLIC include)
 
-
 # SnakeApp Executable
 add_executable(snakeapp
         src/main.cpp
         src/Renderer.cpp
         src/SDLInputProvider.cpp
         src/Model.cpp
-        src/Neuron.cpp
-        src/Layer.cpp
 )
 
 target_include_directories(snakeapp PRIVATE include)

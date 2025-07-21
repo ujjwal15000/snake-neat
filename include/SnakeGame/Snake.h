@@ -2,12 +2,7 @@
 #include <deque>
 #include <utility>
 #include <unordered_set>
-
-struct PairHash {
-    size_t operator()(const std::pair<int, int>& p) const {
-        return std::hash<int>()(p.first) ^ (std::hash<int>()(p.second) << 1);
-    }
-};
+#include "Utils/RandomUtils.h"
 
 class Snake {
 public:
@@ -19,8 +14,8 @@ public:
     void turnLeft();
     bool checkCollision(int gridWidth, int gridHeight) const;
 
-    const std::deque<std::pair<int, int> >& getBody() const;
-    const std::pair<int, int>& getHead() const;
+    [[nodiscard]] const std::deque<std::pair<int, int> >& getBody() const;
+    [[nodiscard]] const std::pair<int, int>& getHead() const;
 
 private:
     std::deque<std::pair<int, int> > body_;
