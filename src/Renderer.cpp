@@ -31,9 +31,9 @@ void Renderer::clear() {
     SDL_RenderClear(renderer_);
 }
 
-void Renderer::drawRect(int x, int y, int w, int h) {
-    SDL_Rect rect = { x, y, w, h };
-    SDL_SetRenderDrawColor(renderer_, 0, 255, 0, 255);  // Green snake
+void Renderer::drawRect(int x, int y, int w, int h, int r, int g, int b, int a) {
+    SDL_Rect rect = {x, y, w, h};
+    SDL_SetRenderDrawColor(renderer_, r, g, b, a);
     SDL_RenderFillRect(renderer_, &rect);
 }
 

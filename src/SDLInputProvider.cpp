@@ -1,6 +1,6 @@
 #include "SnakeGame/SDLInputProvider.h"
 
-Direction SDLInputProvider::getInput() {
+Direction SDLInputProvider::getInput(std::vector<double>& inputs) {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         if (event.type == SDL_KEYDOWN) {

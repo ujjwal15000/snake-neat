@@ -8,7 +8,7 @@ public:
     ~Renderer();
 
     void clear();
-    void drawRect(int x, int y, int w, int h);
+    void drawRect(int x, int y, int w, int h, int r, int g, int b, int a);
     void present();
 
 private:

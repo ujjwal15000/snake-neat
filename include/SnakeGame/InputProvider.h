@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 enum class Direction {
     Left,
     Right,
@@ -10,6 +12,5 @@ class InputProvider {
 public:
     virtual ~InputProvider() = default;
 
-    // Virtual method to be implemented by subclasses
-    virtual Direction getInput() = 0;
+    virtual Direction getInput(std::vector<double>& inputs) = 0;
 };

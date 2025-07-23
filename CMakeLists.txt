@@ -20,7 +20,9 @@ add_executable(snakeapp
         src/main.cpp
         src/Renderer.cpp
         src/SDLInputProvider.cpp
+        src/ModelInputProvider.cpp
         src/Model.cpp
+        src/Population.cpp
 )
 
 target_include_directories(snakeapp PRIVATE include)

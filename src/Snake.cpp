@@ -13,9 +13,13 @@ void Snake::move() {
     body_.push_front(head);
     positions_.insert(head);
 
-    auto tail = body_.back();
-    body_.pop_back();
-    positions_.erase(tail);
+    if (growAmount_ > 0) {
+        growAmount_--;
+    } else {
+        auto tail = body_.back();
+        body_.pop_back();
+        positions_.erase(tail);
+    }
 }
 
 void Snake::turnLeft() {
@@ -51,20 +55,15 @@ void Snake::turnRight() {
 }
 
 void Snake::grow() {
-    auto tail = body_.back();
-    body_.push_back(tail);  // Duplicate tail to grow
+    growAmount_++;
 }
 
 bool Snake::checkCollision(int gridWidth, int gridHeight) const {
-    auto head =  getHead();
+    auto head = getHead();
     if (head.first < 0 || head.first >= gridWidth || head.second < 0 || head.second >= gridHeight)
         return true;
-    for (size_t i = 1; i < body_.size(); ++i) {
-        if (body_[i] == head)
-            return true;
-    }
 
-    return positions_.count(head) > 1;
+    return std::count(body_.begin() + 1, body_.end(), head) > 0;
 }
 
 const std::deque<std::pair<int, int> > &Snake::getBody() const {
@@ -73,4 +72,8 @@ const std::deque<std::pair<int, int> > &Snake::getBody() const {
 
 const std::pair<int, int> &Snake::getHead() const {
     return body_.front();
+}
+
+std::pair<int, int> Snake::getDir(){
+    return std::make_pair(dirX_, dirY_);
 }
