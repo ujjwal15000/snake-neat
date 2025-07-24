@@ -1,8 +1,29 @@
 #include "SnakeGame/Snake.h"
 
-Snake::Snake(int startX, int startY)
-    : dirX_(1), dirY_(0) {
-    body_.emplace_back(startX, startY);
+
+Snake::Snake(int startX, int startY) {
+    static const std::array<std::pair<int, int>, 4> directions = {
+            std::make_pair(1, 0),   // Right
+            std::make_pair(-1, 0),  // Left
+            std::make_pair(0, -1),  // Up
+            std::make_pair(0, 1)    // Down
+    };
+
+    // Pick a random direction
+    static std::mt19937 rng(std::random_device{}());
+    std::uniform_int_distribution<int> dist(0, 3);
+    auto dir = directions[dist(rng)];
+
+    dirX_ = dir.first;
+    dirY_ = dir.second;
+
+    // Initialize 3 blocks in the opposite direction of movement
+    for (int i = 0; i < 4; ++i) {
+        int x = startX - i * dirX_;
+        int y = startY - i * dirY_;
+        body_.emplace_back(x, y);
+        positions_.insert({x, y});
+    }
 }
 
 void Snake::move() {
@@ -58,12 +79,16 @@ void Snake::grow() {
     growAmount_++;
 }
 
-bool Snake::checkCollision(int gridWidth, int gridHeight) const {
+bool Snake::checkCollision(int gridWidth, int gridHeight, bool* bodyCollided) const {
     auto head = getHead();
     if (head.first < 0 || head.first >= gridWidth || head.second < 0 || head.second >= gridHeight)
         return true;
 
-    return std::count(body_.begin() + 1, body_.end(), head) > 0;
+    if(std::count(body_.begin() + 1, body_.end(), head) > 0) { \
+        *bodyCollided = true;
+        return true;
+    }
+    return false;
 }
 
 const std::deque<std::pair<int, int> > &Snake::getBody() const {

@@ -16,7 +16,7 @@ public:
             fitness_(0) {
         game_ = Game(800, 800,
                      nullptr,
-                     std::make_unique<ModelInputProvider>(model_.get()));
+                     std::make_unique<ModelInputProvider>(model_.get(), false));
     };
 
     Individual(std::unique_ptr<Model> model) :
@@ -25,33 +25,45 @@ public:
             fitness_(0) {
         game_ = Game(800, 800,
                      nullptr,
-                     std::make_unique<ModelInputProvider>(model_.get()));
+                     std::make_unique<ModelInputProvider>(model_.get(), false));
     }
 
-    [[nodiscard]] int getFitness() const { return fitness_; };
+    [[nodiscard]] double getFitness() const { return fitness_; };
 
     void train() {
         fitness_ = 0;
-        int numTrain = 2;
+        int numTrain = 3;
+
+        double totalScore = 0.0;
         for (int i = 0; i < numTrain; ++i) {
             game_.start();
-            fitness_ = std::max(fitness_, game_.getScore());
+            totalScore += game_.getScore();
         }
+
+        fitness_ = totalScore / numTrain;
     }
 
     void play(Renderer* renderer) {
         Game game(800, 800,
                      renderer,
-                     std::make_unique<ModelInputProvider>(model_.get()));
+                     std::make_unique<ModelInputProvider>(model_.get(), true));
         game.start();
     }
 
     Model *getModel() { return model_.get(); }
 
+    void save(std::ostream& out) const {
+        model_->save(out);
+    }
+
+    void load(std::istream& in) {
+        model_->load(in);
+    }
+
 private:
     Game game_;
     std::unique_ptr<Model> model_;
-    int fitness_;
+    double fitness_;
 };
 
 class Population {

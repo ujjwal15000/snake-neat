@@ -28,6 +28,47 @@ Model::Model(int inputs, int outputs) : inputs_(inputs), outputs_(outputs) {
     }
 }
 
+//Model::Model(int inputs, int outputs) : inputs_(inputs), outputs_(outputs) {
+//    int layerSizes[] = {inputs, 16, 32, 16, 8, outputs};
+//    std::vector<std::vector<Node*>> layers;
+//
+//    // Create nodes for each layer
+//    for (int layer = 0; layer < 6; ++layer) {
+//        std::vector<Node*> layerNodes;
+//        bool isInput = (layer == 0);
+//        bool isOutput = (layer == 5);
+//
+//        for (int i = 0; i < layerSizes[layer]; ++i) {
+//            auto node = std::make_unique<Node>(id_++, !isInput && !isOutput, isInput);
+//            Node *nodePtr = node.get();
+//
+//            if (isInput)
+//                inputNodes_.push_back(nodePtr);
+//            else if (isOutput)
+//                outputNodes_.push_back(nodePtr);
+//
+//            nodes_.emplace(node->getId(), std::move(node));
+//            layerNodes.push_back(nodePtr);
+//
+//            if (layer > 0 && layer < 5) {
+//                nodePtr->setActivation(ActivationType::ReLU);
+//            } else if (layer == 5) {
+//                nodePtr->setActivation(ActivationType::Sigmoid);
+//            }
+//        }
+//        layers.push_back(std::move(layerNodes));
+//    }
+//
+//    // Fully connect layer[i] → layer[i + 1]
+//    for (size_t i = 0; i < layers.size() - 1; ++i) {
+//        for (Node *from : layers[i]) {
+//            for (Node *to : layers[i + 1]) {
+//                addConnection(from, to);
+//            }
+//        }
+//    }
+//}
+
 void Model::addConnection(Node *from, Node *to) {
     auto conn = std::make_unique<Connection>(from->getId(), to->getId());
     connections_.emplace(std::make_pair(from->getId(), to->getId()), std::move(conn));
@@ -112,45 +153,41 @@ bool Model::checkCycle(std::unordered_map<int, std::unique_ptr<Node> > *nodes, i
     return dfs(to);
 }
 
-std::vector<double> &Model::feedForward(std::vector<double> &inputs) {
+std::vector<double> Model::feedForward(std::vector<double> &inputs) {
     if (inputs.size() != inputNodes_.size())
         throw std::invalid_argument("Input size mismatch");
 
-    // 1. Set input values
     for (size_t i = 0; i < inputs.size(); ++i) {
         inputNodes_[i]->setValue(inputs[i]);
     }
 
-    // 2. Prepare to store output values
-    static std::vector<double> outputs(outputNodes_.size());
+    std::vector<double> outputs(outputNodes_.size());
 
-    // 3. Do a simple topological order by layering:
     std::unordered_set<int> visited;
     std::function<void(Node *)> visit = [&](Node *node) {
         if (!visited.insert(node->getId()).second)
             return;
-        for (int inId: node->getIn())
+        for (int inId : node->getIn())
             visit(nodes_.at(inId).get());
 
         if (!node->isInput()) {
             double sum = 0.0;
-            for (int inId: node->getIn()) {
+            for (int inId : node->getIn()) {
                 Node *inNode = nodes_.at(inId).get();
                 double weight = 0.0;
-                if (connections_.at({inId, node->getId()})->isEnabled())
-                    weight = connections_.at({inId, node->getId()})->getWeight();
+                auto connIt = connections_.find({inId, node->getId()});
+                if (connIt != connections_.end() && connIt->second->isEnabled())
+                    weight = connIt->second->getWeight();
                 sum += inNode->getValue() * weight;
             }
             node->setValue(node->activate(sum + node->getBias()));
         }
     };
 
-    // 4. Visit all output nodes (which recursively visits everything)
-    for (auto *node: outputNodes_) {
+    for (auto *node : outputNodes_) {
         visit(node);
     }
 
-    // 5. Collect outputs
     for (size_t i = 0; i < outputNodes_.size(); ++i) {
         outputs[i] = outputNodes_[i]->getValue();
     }
@@ -197,6 +234,10 @@ void Model::mutate() {
                 node->setBias(mutationDelta(node->getBias()));
             }
         }
+
+//        if (dist(rng_) < 0.01) {
+//            node->setActivation(Node::getRandomActivation());
+//        }
     }
 
     for (auto &[key, conn] : connections_) {
@@ -215,20 +256,65 @@ void Model::mutate() {
         }
     }
 
-    if (dist(rng_) < 0.05) {
-        addConnectionMutation();
+    if (dist(rng_) < 0.1) { addConnectionMutation(); }   // more links early on
+    if (dist(rng_) < 0.1) { addNodeMutation(); }         // more structure growth
+    if (dist(rng_) < 0.05) { removeConnectionMutation(); } // low but present
+    if (dist(rng_) < 0.05) { removeNodeMutation(); }       // rare to avoid fragmentation
+
+}
+
+void Model::save(std::ostream& out) const {
+    out.write(reinterpret_cast<const char*>(&inputs_), sizeof(inputs_));
+    out.write(reinterpret_cast<const char*>(&outputs_), sizeof(outputs_));
+    out.write(reinterpret_cast<const char*>(&id_), sizeof(id_));
+    out.write(reinterpret_cast<const char*>(&fitness_), sizeof(fitness_));
+
+    size_t nodeCount = nodes_.size();
+    out.write(reinterpret_cast<const char*>(&nodeCount), sizeof(nodeCount));
+    for (const auto& [id, node] : nodes_) {
+        out.write(reinterpret_cast<const char*>(&id), sizeof(id));
+        node->save(out);
     }
 
-    if (dist(rng_) < 0.03) {
-        addNodeMutation();
-    }
-
-    if (dist(rng_) < 0.01) {
-        removeConnectionMutation();
-    }
-
-    if (dist(rng_) < 0.01) {
-        removeNodeMutation();
+    size_t connCount = connections_.size();
+    out.write(reinterpret_cast<const char*>(&connCount), sizeof(connCount));
+    for (const auto& [key, conn] : connections_) {
+        out.write(reinterpret_cast<const char*>(&key.first), sizeof(int));
+        out.write(reinterpret_cast<const char*>(&key.second), sizeof(int));
+        conn->save(out);
     }
 }
 
+void Model::load(std::istream& in) {
+    in.read(reinterpret_cast<char*>(&inputs_), sizeof(inputs_));
+    in.read(reinterpret_cast<char*>(&outputs_), sizeof(outputs_));
+    in.read(reinterpret_cast<char*>(&id_), sizeof(id_));
+    in.read(reinterpret_cast<char*>(&fitness_), sizeof(fitness_));
+
+    size_t nodeCount;
+    in.read(reinterpret_cast<char*>(&nodeCount), sizeof(nodeCount));
+    nodes_.clear();
+    inputNodes_.clear();
+    outputNodes_.clear();
+    for (size_t i = 0; i < nodeCount; ++i) {
+        int id;
+        in.read(reinterpret_cast<char*>(&id), sizeof(id));
+        auto node = std::make_unique<Node>(0, false, false);
+        node->load(in);
+        if (node->isInput()) inputNodes_.push_back(node.get());
+        else if (!node->isHidden()) outputNodes_.push_back(node.get());
+        nodes_[id] = std::move(node);
+    }
+
+    size_t connCount;
+    in.read(reinterpret_cast<char*>(&connCount), sizeof(connCount));
+    connections_.clear();
+    for (size_t i = 0; i < connCount; ++i) {
+        int from, to;
+        in.read(reinterpret_cast<char*>(&from), sizeof(from));
+        in.read(reinterpret_cast<char*>(&to), sizeof(to));
+        auto conn = std::make_unique<Connection>(0.0, from, to);
+        conn->load(in);
+        connections_[{from, to}] = std::move(conn);
+    }
+}

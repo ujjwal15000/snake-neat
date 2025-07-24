@@ -11,14 +11,15 @@ public:
 
     void start();
     void render();
-    int getScore(){ return score_;};
+    double getScore(){ return score_;};
     void getInputs(std::vector<double>& inputs);
     void reset();
 private:
     Snake snake_;
     std::pair<int, int> food_;
     std::unique_ptr<InputProvider> inputProvider_;
-    int gridW_, gridH_, score_, steps_;
+    int gridW_, gridH_, steps_;
+    double score_;
     Renderer* renderer_;
     static const int CellSize_ = 20;
 

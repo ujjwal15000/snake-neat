@@ -4,6 +4,9 @@
 #include <unordered_set>
 #include <Utils/RandomUtils.h>
 #include <Utils/MutationUtils.h>
+#include <ostream>
+#include <istream>
+
 
 enum class ActivationType {
     Identity,
@@ -38,6 +41,8 @@ struct Node {
     void setValue(double value) { value_ = value; }
 
     void setBias(double bias) { bias_ = bias; }
+
+    void setActivation(ActivationType activationType) { activationType_ = activationType; }
 
     double getValue() const { return value_; }
 
@@ -83,6 +88,51 @@ struct Node {
 
     [[nodiscard]] std::unordered_set<int> getOut() const { return out_; }
 
+    void save(std::ostream& out) const {
+        out.write(reinterpret_cast<const char*>(&id_), sizeof(id_));
+        out.write(reinterpret_cast<const char*>(&bias_), sizeof(bias_));
+        out.write(reinterpret_cast<const char*>(&hidden_), sizeof(hidden_));
+        out.write(reinterpret_cast<const char*>(&input_), sizeof(input_));
+        auto act = static_cast<int>(activationType_);
+        out.write(reinterpret_cast<const char*>(&act), sizeof(act));
+
+        size_t inSize = in_.size();
+        out.write(reinterpret_cast<const char*>(&inSize), sizeof(inSize));
+        for (int i : in_) out.write(reinterpret_cast<const char*>(&i), sizeof(i));
+
+        size_t outSize = out_.size();
+        out.write(reinterpret_cast<const char*>(&outSize), sizeof(outSize));
+        for (int i : out_) out.write(reinterpret_cast<const char*>(&i), sizeof(i));
+    }
+
+    void load(std::istream& in) {
+        int act;
+        in.read(reinterpret_cast<char*>(&id_), sizeof(id_));
+        in.read(reinterpret_cast<char*>(&bias_), sizeof(bias_));
+        in.read(reinterpret_cast<char*>(&hidden_), sizeof(hidden_));
+        in.read(reinterpret_cast<char*>(&input_), sizeof(input_));
+        in.read(reinterpret_cast<char*>(&act), sizeof(act));
+        activationType_ = static_cast<ActivationType>(act);
+
+        size_t inSize;
+        in.read(reinterpret_cast<char*>(&inSize), sizeof(inSize));
+        in_.clear();
+        for (size_t i = 0; i < inSize; ++i) {
+            int v;
+            in.read(reinterpret_cast<char*>(&v), sizeof(v));
+            in_.insert(v);
+        }
+
+        size_t outSize;
+        in.read(reinterpret_cast<char*>(&outSize), sizeof(outSize));
+        out_.clear();
+        for (size_t i = 0; i < outSize; ++i) {
+            int v;
+            in.read(reinterpret_cast<char*>(&v), sizeof(v));
+            out_.insert(v);
+        }
+    }
+
 private:
     int id_;
     double bias_, value_{0.0};
@@ -120,6 +170,21 @@ struct Connection {
         return conn;
     }
 
+    void save(std::ostream& out) const {
+        out.write(reinterpret_cast<const char*>(&weight_), sizeof(weight_));
+        out.write(reinterpret_cast<const char*>(&from_), sizeof(from_));
+        out.write(reinterpret_cast<const char*>(&to_), sizeof(to_));
+        out.write(reinterpret_cast<const char*>(&enabled_), sizeof(enabled_));
+    }
+
+    void load(std::istream& in) {
+        in.read(reinterpret_cast<char*>(&weight_), sizeof(weight_));
+        in.read(reinterpret_cast<char*>(&from_), sizeof(from_));
+        in.read(reinterpret_cast<char*>(&to_), sizeof(to_));
+        in.read(reinterpret_cast<char*>(&enabled_), sizeof(enabled_));
+    }
+
+
 private:
     double weight_;
     int from_, to_;
@@ -130,13 +195,16 @@ class Model {
 public:
     Model(int inputs, int outputs);
 
-    std::vector<double> &feedForward(std::vector<double> &inputs);
+    std::vector<double> feedForward(std::vector<double> &inputs);
 
     void setFitness(double fitness) { fitness_ = fitness; }
 
     void mutate();
 
     std::unique_ptr<Model> crossover(Model *other);
+
+    void save(std::ostream& out) const;
+    void load(std::istream& in);
 
 private:
     int inputs_, outputs_, id_ = 0;

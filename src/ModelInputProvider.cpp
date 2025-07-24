@@ -2,8 +2,10 @@
 
 
 Direction ModelInputProvider::getInput(std::vector<double> &inputs) {
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {}
+    if(render_) {
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {}
+    }
     auto outputs = model_->feedForward(inputs);
     auto maxIt = std::max_element(outputs.begin(), outputs.end());
     double maxValue = *maxIt;

@@ -12,7 +12,7 @@ public:
     void grow();
     void turnRight();
     void turnLeft();
-    bool checkCollision(int gridWidth, int gridHeight) const;
+    bool checkCollision(int gridWidth, int gridHeight, bool* bodyCollide) const;
     std::pair<int, int> getDir();
 
     [[nodiscard]] const std::deque<std::pair<int, int> >& getBody() const;

@@ -7,12 +7,12 @@
 
 struct DoubleConfig {
     double init_mean = 0.0;
-    double init_stdev = 0.0;
-    double min = -20.0;
-    double max = 20.0;
-    double mutation_rate = 0.2;
-    double mutation_power = 1.2;
-    double replace_rate = 0.05;
+    double init_stdev = -0.0;
+    double min = -1.0;
+    double max = 1.0;
+    double mutation_rate = 0.3;
+    double mutation_power = 0.8;
+    double replace_rate = 0.3;
 };
 
 static DoubleConfig mutationConfig{};
@@ -29,6 +29,6 @@ inline double newValue() {
 
 inline double mutationDelta(double value) {
     std::normal_distribution<double> dist(0.0, mutationConfig.mutation_power);
-    double delta = clamp(dist(rng_));
+    double delta = dist(rng_);
     return clamp(value + delta);
 }

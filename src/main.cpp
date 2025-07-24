@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <iostream>
+#include <omp.h>
 
 void printStackTrace() {
     const int maxFrames = 64;
@@ -59,7 +60,7 @@ int main() {
 //    int w = 800;
 //    int h = 800;
 //    std::unique_ptr<Renderer> renderer = std::make_unique<Renderer>(w, h);
-//    Game game(w, h, std::move(renderer), std::move(inputProvider));
+//    Game game(w, h, renderer.get(), std::move(inputProvider));
 //    game.start();
 
 //    Model model(4, 2);
@@ -67,7 +68,7 @@ int main() {
 //    std::cout << vectorToString(model.feedForward(inputs)) << std::endl;
 
     Renderer renderer(800, 800);
-    Population population(50);
+    Population population(200);
     population.train(&renderer);
     return 0;
 }
