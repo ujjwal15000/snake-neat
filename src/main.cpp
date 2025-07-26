@@ -61,14 +61,14 @@ int main() {
 //    int h = 800;
 //    std::unique_ptr<Renderer> renderer = std::make_unique<Renderer>(w, h);
 //    Game game(w, h, renderer.get(), std::move(inputProvider));
-//    game.start();
+//    game.start(0.0);
 
 //    Model model(4, 2);
 //    std::vector<double> inputs{0.4, 0.33, 0.2, 0.8};
 //    std::cout << vectorToString(model.feedForward(inputs)) << std::endl;
 
     Renderer renderer(800, 800);
-    Population population(200);
+    Population population(1000);
     population.train(&renderer);
     return 0;
 }

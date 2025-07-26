@@ -44,32 +44,32 @@ void Snake::move() {
 }
 
 void Snake::turnLeft() {
-    if(dirX_ == 1 && dirY_ == 0){
+    if (dirX_ == 1 && dirY_ == 0) {
         dirX_ = 0;
         dirY_ = -1;
-    } else if(dirX_ == -1 && dirY_ == 0){
+    } else if (dirX_ == -1 && dirY_ == 0) {
         dirX_ = 0;
         dirY_ = 1;
-    } else if(dirX_ == 0 && dirY_ == 1){
+    } else if (dirX_ == 0 && dirY_ == 1) {
         dirY_ = 0;
         dirX_ = 1;
-    } else{
+    } else {
         dirY_ = 0;
         dirX_ = -1;
     }
 }
 
 void Snake::turnRight() {
-    if(dirX_ == 1 && dirY_ == 0){
+    if (dirX_ == 1 && dirY_ == 0) {
         dirX_ = 0;
         dirY_ = 1;
-    } else if(dirX_ == -1 && dirY_ == 0){
+    } else if (dirX_ == -1 && dirY_ == 0) {
         dirX_ = 0;
         dirY_ = -1;
-    } else if(dirX_ == 0 && dirY_ == 1){
+    } else if (dirX_ == 0 && dirY_ == 1) {
         dirY_ = 0;
         dirX_ = -1;
-    } else{
+    } else {
         dirY_ = 0;
         dirX_ = 1;
     }
@@ -79,15 +79,20 @@ void Snake::grow() {
     growAmount_++;
 }
 
-bool Snake::checkCollision(int gridWidth, int gridHeight, bool* bodyCollided) const {
+bool Snake::checkCollision(int gridWidth, int gridHeight, bool *bodyCollided) const {
     auto head = getHead();
-    if (head.first < 0 || head.first >= gridWidth || head.second < 0 || head.second >= gridHeight)
+
+    if (bodyCollided) *bodyCollided = false;
+
+    if (head.first < 0 || head.first >= gridWidth ||
+        head.second < 0 || head.second >= gridHeight)
         return true;
 
-    if(std::count(body_.begin() + 1, body_.end(), head) > 0) { \
-        *bodyCollided = true;
+    if (std::count(body_.begin() + 1, body_.end(), head) > 0) {
+        if (bodyCollided) *bodyCollided = true;
         return true;
     }
+
     return false;
 }
 
@@ -99,6 +104,6 @@ const std::pair<int, int> &Snake::getHead() const {
     return body_.front();
 }
 
-std::pair<int, int> Snake::getDir(){
+std::pair<int, int> Snake::getDir() {
     return std::make_pair(dirX_, dirY_);
 }

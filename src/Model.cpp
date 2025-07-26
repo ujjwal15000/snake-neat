@@ -1,32 +1,89 @@
 #include "Model/Model.h"
 #include <memory>
 
-Model::Model(int inputs, int outputs) : inputs_(inputs), outputs_(outputs) {
-    for (int i = 0; i < inputs; ++i) {
-        auto node = std::make_unique<Node>(id_++, false, true);
-        Node *nodePtr = node.get();
+Model::Model(int inputs, int outputs)
+        : inputs_(inputs), outputs_(outputs) {
+
+    // Helper
+    auto createNode = [&](bool isInput, bool isHidden, ActivationType activationType) -> Node* {
+        auto node = std::make_unique<Node>(id_++, isHidden, isInput, activationType);
+        Node* nodePtr = node.get();
         nodes_.emplace(node->getId(), std::move(node));
-        inputNodes_.push_back(nodePtr);
-    }
+        return nodePtr;
+    };
 
-    std::unordered_map<int, std::unique_ptr<Node>> outputNodes{};
-    for (int i = 0; i < outputs; ++i) {
-        auto outputNode = std::make_unique<Node>(id_++, false, false);
-        int id = outputNode->getId();
+    // === Create Layers ===
+    std::vector<std::vector<Node*>> layers;
 
-        for (auto &[_, inputNode]: nodes_) {
-            addConnection(inputNode.get(), outputNode.get());
+    // Input layer
+    std::vector<Node*> inputLayer;
+    for (int i = 0; i < inputs; ++i)
+        inputLayer.push_back(createNode(true, false, ActivationType::Identity));
+    layers.push_back(inputLayer);
+    inputNodes_ = inputLayer;
+
+//    // Hidden Layer 1: 24 neurons
+//    std::vector<Node*> hidden1;
+//    for (int i = 0; i < 24; ++i)
+//        hidden1.push_back(createNode(false, true, ActivationType::Tanh));
+//    layers.push_back(hidden1);
+
+    // Hidden Layer 2: 32 neurons
+//    std::vector<Node*> hidden2;
+//    for (int i = 0; i < 16; ++i)
+//        hidden2.push_back(createNode(false, true, ActivationType::Tanh));
+//    layers.push_back(hidden2);
+
+//    // Hidden layer 3: 16 neurons
+//    std::vector<Node*> hidden3;
+//    for (int i = 0; i < 16; ++i)
+//        hidden3.push_back(createNode(false, true, ActivationType::ReLU));
+//    layers.push_back(hidden3);
+
+    // Output layer
+    std::vector<Node*> outputLayer;
+    for (int i = 0; i < outputs; ++i)
+        outputLayer.push_back(createNode(false, false, ActivationType::Identity));
+    layers.push_back(outputLayer);
+    outputNodes_ = outputLayer;
+
+    // === Connect Fully Between Layers ===
+    for (size_t i = 0; i + 1 < layers.size(); ++i) {
+        for (Node* from : layers[i]) {
+            for (Node* to : layers[i + 1]) {
+                addConnection(from, to);
+            }
         }
-
-        outputNodes.emplace(id, std::move(outputNode));
-    }
-
-    for (auto &[id, node]: outputNodes) {
-        Node *nodePtr = node.get();
-        nodes_.emplace(id, std::move(node));
-        outputNodes_.push_back(nodePtr);
     }
 }
+
+
+//Model::Model(int inputs, int outputs) : inputs_(inputs), outputs_(outputs) {
+//    for (int i = 0; i < inputs; ++i) {
+//        auto node = std::make_unique<Node>(id_++, false, true, ActivationType::Identity);
+//        Node *nodePtr = node.get();
+//        nodes_.emplace(node->getId(), std::move(node));
+//        inputNodes_.push_back(nodePtr);
+//    }
+//
+//    std::unordered_map<int, std::unique_ptr<Node>> outputNodes{};
+//    for (int i = 0; i < outputs; ++i) {
+//        auto outputNode = std::make_unique<Node>(id_++, false, false, ActivationType::Identity);
+//        int id = outputNode->getId();
+//
+//        for (auto &[_, inputNode]: nodes_) {
+//            addConnection(inputNode.get(), outputNode.get());
+//        }
+//
+//        outputNodes.emplace(id, std::move(outputNode));
+//    }
+//
+//    for (auto &[id, node]: outputNodes) {
+//        Node *nodePtr = node.get();
+//        nodes_.emplace(id, std::move(node));
+//        outputNodes_.push_back(nodePtr);
+//    }
+//}
 
 //Model::Model(int inputs, int outputs) : inputs_(inputs), outputs_(outputs) {
 //    int layerSizes[] = {inputs, 16, 32, 16, 8, outputs};
@@ -113,7 +170,7 @@ void Model::addNodeMutation() {
     Connection *conn = getRandomPair(connections_).second.get();
     double oldWeight = conn->getWeight();
 
-    auto node = std::make_unique<Node>(id_++, true, false);
+    auto node = std::make_unique<Node>(id_++, true, false, ActivationType::Tanh);
     int nodeId = node->getId();
     nodes_.emplace(nodeId, std::move(node));
 
@@ -157,43 +214,54 @@ std::vector<double> Model::feedForward(std::vector<double> &inputs) {
     if (inputs.size() != inputNodes_.size())
         throw std::invalid_argument("Input size mismatch");
 
+    // Clear all node values before a new evaluation
+    for (auto& [_, node] : nodes_) {
+        node->setValue(0.0);
+    }
+
+    // Set input node values
     for (size_t i = 0; i < inputs.size(); ++i) {
         inputNodes_[i]->setValue(inputs[i]);
     }
 
     std::vector<double> outputs(outputNodes_.size());
-
     std::unordered_set<int> visited;
+
     std::function<void(Node *)> visit = [&](Node *node) {
         if (!visited.insert(node->getId()).second)
             return;
-        for (int inId : node->getIn())
+
+        for (int inId : node->getIn()) {
             visit(nodes_.at(inId).get());
+        }
 
         if (!node->isInput()) {
             double sum = 0.0;
             for (int inId : node->getIn()) {
                 Node *inNode = nodes_.at(inId).get();
-                double weight = 0.0;
                 auto connIt = connections_.find({inId, node->getId()});
-                if (connIt != connections_.end() && connIt->second->isEnabled())
-                    weight = connIt->second->getWeight();
-                sum += inNode->getValue() * weight;
+                if (connIt != connections_.end() && connIt->second->isEnabled()) {
+                    double weight = connIt->second->getWeight();
+                    sum += inNode->getValue() * weight;
+                }
             }
             node->setValue(node->activate(sum + node->getBias()));
         }
     };
 
+    // Start traversal from each output node
     for (auto *node : outputNodes_) {
         visit(node);
     }
 
+    // Collect final output values
     for (size_t i = 0; i < outputNodes_.size(); ++i) {
         outputs[i] = outputNodes_[i]->getValue();
     }
 
     return outputs;
 }
+
 
 std::unique_ptr<Model> Model::crossover(Model *other) {
     Model *fitter = other->fitness_ > this->fitness_ ? other : this;
@@ -225,7 +293,7 @@ void Model::mutate() {
     std::uniform_real_distribution<double> dist(0.0, 1.0);
 
     for (auto &[id, node] : nodes_) {
-        if (node->isInput()) continue;
+        if (!node->isHidden()) continue;
 
         if (dist(rng_) < mutationConfig_.mutation_rate) {
             if (dist(rng_) < mutationConfig_.replace_rate) {
@@ -256,10 +324,10 @@ void Model::mutate() {
         }
     }
 
-    if (dist(rng_) < 0.1) { addConnectionMutation(); }   // more links early on
-    if (dist(rng_) < 0.1) { addNodeMutation(); }         // more structure growth
-    if (dist(rng_) < 0.05) { removeConnectionMutation(); } // low but present
-    if (dist(rng_) < 0.05) { removeNodeMutation(); }       // rare to avoid fragmentation
+    if (dist(rng_) < 0.05) { addConnectionMutation(); }   // more links early on
+    if (dist(rng_) < 0.05) { addNodeMutation(); }         // more structure growth
+    if (dist(rng_) < 0.01) { removeConnectionMutation(); } // low but present
+    if (dist(rng_) < 0.01) { removeNodeMutation(); }       // rare to avoid fragmentation
 
 }
 
@@ -318,3 +386,77 @@ void Model::load(std::istream& in) {
         connections_[{from, to}] = std::move(conn);
     }
 }
+
+double Model::getCompatibilityDistance(Model *other) {
+    const auto& conn1 = this->connections_;
+    const auto& conn2 = other->connections_;
+
+    std::unordered_set<std::pair<int, int>, PairHash> allKeys;
+    int disjoint = 0;
+    double weightDiffSum = 0.0;
+    int matching = 0;
+
+    for (const auto& [key, conn] : conn1) {
+        allKeys.insert(key);
+        auto it = conn2.find(key);
+        if (it != conn2.end()) {
+            // Matching gene
+            weightDiffSum += std::abs(conn->getWeight() - it->second->getWeight());
+            ++matching;
+        } else {
+            // Disjoint
+            ++disjoint;
+        }
+    }
+
+    for (const auto& [key, conn] : conn2) {
+        if (allKeys.find(key) == allKeys.end()) {
+            ++disjoint;
+        }
+    }
+
+    // Normalize
+    int N = std::max(conn1.size(), conn2.size());
+    if (N < 20) N = 1;  // Avoid division by small values early on
+
+    double avgWeightDiff = (matching > 0) ? (weightDiffSum / matching) : 0.0;
+
+    // Coefficients (tune these)
+//    double c1 = 1.0;  // disjoint
+//    double c2 = 0.4;  // weight difference
+    double c1 = 1.0;  // disjoint
+    double c2 = 0.0;  // weight difference
+
+    return (c1 * disjoint / N) + (c2 * avgWeightDiff);
+}
+
+
+std::unique_ptr<Model> Model::clone() const {
+    auto cloned = std::make_unique<Model>(inputs_, outputs_);
+    cloned->id_ = id_;
+    cloned->fitness_ = fitness_;
+    cloned->mutationConfig_ = mutationConfig_;
+
+    // Clone nodes
+    cloned->nodes_.clear();
+    for (const auto &[id, node] : nodes_) {
+        cloned->nodes_[id] = node->clone();
+    }
+
+    // Fix input/output pointers
+    cloned->inputNodes_.clear();
+    cloned->outputNodes_.clear();
+    for (auto &[id, node] : cloned->nodes_) {
+        if (node->isInput()) cloned->inputNodes_.push_back(node.get());
+        else if (!node->isHidden()) cloned->outputNodes_.push_back(node.get());
+    }
+
+    // Clone connections
+    cloned->connections_.clear();
+    for (const auto &[key, conn] : connections_) {
+        cloned->connections_[key] = conn->clone();
+    }
+
+    return cloned;
+}
+

@@ -7,12 +7,12 @@
 
 struct DoubleConfig {
     double init_mean = 0.0;
-    double init_stdev = -0.0;
+    double init_stdev = 0.0;
     double min = -1.0;
     double max = 1.0;
-    double mutation_rate = 0.3;
-    double mutation_power = 0.8;
-    double replace_rate = 0.3;
+    double mutation_rate = 0.2;
+    double mutation_power = 0.5;
+    double replace_rate = 0.1;
 };
 
 static DoubleConfig mutationConfig{};

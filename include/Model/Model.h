@@ -28,6 +28,12 @@ struct Node {
               hidden_(hidden), input_(input),
               activationType_(activationType) {}
 
+    Node(int id, bool hidden, bool input, ActivationType activationType)
+            : id_(id),
+              bias_(input ? 0.0 : newValue()),
+              hidden_(hidden), input_(input),
+              activationType_(activationType) {}
+
     Node(const Node &other) = default;
 
     void addIn(int i) { in_.insert(i); }
@@ -133,6 +139,14 @@ struct Node {
         }
     }
 
+    std::unique_ptr<Node> clone() const {
+        auto cloned = std::make_unique<Node>(id_, hidden_, input_, bias_, activationType_);
+        cloned->in_ = in_;
+        cloned->out_ = out_;
+        cloned->value_ = value_;
+        return cloned;
+    }
+
 private:
     int id_;
     double bias_, value_{0.0};
@@ -184,6 +198,12 @@ struct Connection {
         in.read(reinterpret_cast<char*>(&enabled_), sizeof(enabled_));
     }
 
+    std::unique_ptr<Connection> clone() const {
+        auto conn = std::make_unique<Connection>(weight_, from_, to_);
+        conn->setEnabled(enabled_);
+        return conn;
+    }
+
 
 private:
     double weight_;
@@ -205,6 +225,8 @@ public:
 
     void save(std::ostream& out) const;
     void load(std::istream& in);
+    double getCompatibilityDistance(Model *other);
+    std::unique_ptr<Model> clone() const;
 
 private:
     int inputs_, outputs_, id_ = 0;

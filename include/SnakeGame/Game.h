@@ -9,7 +9,7 @@ class Game {
 public:
     Game(int gridWidth, int gridHeight, Renderer* renderer, std::unique_ptr<InputProvider> inputProvider);
 
-    void start();
+    void start(double epsilon);
     void render();
     double getScore(){ return score_;};
     void getInputs(std::vector<double>& inputs);
@@ -22,6 +22,7 @@ private:
     double score_;
     Renderer* renderer_;
     static const int CellSize_ = 20;
+    std::mt19937 rng_{std::random_device{}()};
 
     void generateFood();
 };
