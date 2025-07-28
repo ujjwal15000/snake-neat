@@ -22,7 +22,7 @@ Model::Model(int inputs, int outputs)
     layers.push_back(inputLayer);
     inputNodes_ = inputLayer;
 
-//    // Hidden Layer 1: 24 neurons
+    // Hidden Layer 1: 24 neurons
 //    std::vector<Node*> hidden1;
 //    for (int i = 0; i < 24; ++i)
 //        hidden1.push_back(createNode(false, true, ActivationType::Tanh));
@@ -319,15 +319,15 @@ void Model::mutate() {
             }
         }
 
-        if (dist(rng_) < 0.01) {
-            conn->setEnabled(!conn->isEnabled());
-        }
+//        if (dist(rng_) < 0.01) {
+//            conn->setEnabled(!conn->isEnabled());
+//        }
     }
 
-    if (dist(rng_) < 0.05) { addConnectionMutation(); }   // more links early on
-    if (dist(rng_) < 0.05) { addNodeMutation(); }         // more structure growth
-    if (dist(rng_) < 0.01) { removeConnectionMutation(); } // low but present
-    if (dist(rng_) < 0.01) { removeNodeMutation(); }       // rare to avoid fragmentation
+    if (dist(rng_) < 0.01) { addConnectionMutation(); }   // more links early on
+    if (dist(rng_) < 0.01) { addNodeMutation(); }         // more structure growth
+    if (dist(rng_) < 0.005) { removeConnectionMutation(); } // low but present
+    if (dist(rng_) < 0.005) { removeNodeMutation(); }       // rare to avoid fragmentation
 
 }
 

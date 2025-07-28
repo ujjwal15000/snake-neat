@@ -5,6 +5,7 @@
 #include <Utils/RandomUtils.h>
 #include <Model/Model.h>
 #include <queue>
+#include <iostream>
 #include "SnakeGame/ModelInputProvider.h"
 #include "SnakeGame/Game.h"
 
@@ -41,14 +42,14 @@ public:
         auto modelClone = model_->clone();
         auto clonedIndividual = std::make_unique<Individual>(std::move(modelClone),
                                                              fitness_);
-        return clonedIndividual;
+        return std::move(clonedIndividual);
     }
 
     [[nodiscard]] double getFitness() const { return fitness_; };
 
     void train(double epsilon) {
         fitness_ = 0;
-        int numTrain = 2;
+        int numTrain = 5;
 
         double totalScore = 0.0;
         for (int i = 0; i < numTrain; ++i) {
@@ -112,6 +113,11 @@ struct Species {
     double getTotalAdjustedFitness() const {
         double total = 0.0;
         for (const auto *m : members) {
+            if(!m) {
+                std::cout << "null individual" << std::endl;
+                continue;
+            }
+
             total += m->getFitness() / members.size();  // shared fitness
         }
         return total;
@@ -141,9 +147,9 @@ public:
 private:
     int size_;
     int generation_{0};
-    std::vector<Individual> individuals_;
+    std::vector<std::unique_ptr<Individual>> individuals_;
     std::vector<Species> species_;
     int currMaxSpecies_{0};
-    double compatibilityThreshold_ = 0.1;
-    double maxSpecies_ = 10, stagnationThreshold_ = 10000;
+    double compatibilityThreshold_ = 0.02;
+    double maxSpecies_ = 20, stagnationThreshold_ = 5;
 };

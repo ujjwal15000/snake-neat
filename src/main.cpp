@@ -68,7 +68,7 @@ int main() {
 //    std::cout << vectorToString(model.feedForward(inputs)) << std::endl;
 
     Renderer renderer(800, 800);
-    Population population(1000);
+    Population population(100);
     population.train(&renderer);
     return 0;
 }

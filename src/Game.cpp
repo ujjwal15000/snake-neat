@@ -5,7 +5,7 @@
 #include "SnakeGame/SDLInputProvider.h"
 #include <random>
 
-Game::Game(int gridWidth, int gridHeight, Renderer* renderer, std::unique_ptr<InputProvider> inputProvider)
+Game::Game(int gridWidth, int gridHeight, Renderer *renderer, std::unique_ptr<InputProvider> inputProvider)
         : snake_(0, 0),
           food_(0, 0),
           inputProvider_(std::move(inputProvider)),
@@ -13,12 +13,13 @@ Game::Game(int gridWidth, int gridHeight, Renderer* renderer, std::unique_ptr<In
           gridW_(gridWidth),
           gridH_(gridHeight),
           score_(0),
-          steps_(0)
-{
+          steps_(0) {
     std::srand(static_cast<unsigned int>(std::time(nullptr)));  // Seed RNG once
 
-    int snakeX = std::rand() % (gridW_ / CellSize_);
-    int snakeY = std::rand() % (gridH_ / CellSize_);
+    std::uniform_int_distribution<int> distX((gridW_ / CellSize_) * 0.25, (gridW_ / CellSize_) * 0.75);
+    std::uniform_int_distribution<int> distY((gridH_ / CellSize_) * 0.25, (gridH_ / CellSize_) * 0.75);
+    int snakeX = distX(rng_);;
+    int snakeY = distY(rng_);
     snake_ = Snake(snakeX, snakeY);
     generateFood();
 }
@@ -37,19 +38,32 @@ void Game::start(double epsilon) {
     std::uniform_real_distribution<double> dist(0.0, 1.0);
     std::uniform_int_distribution<int> actionDist(0, 2);
 
+    std::deque<std::pair<int, int>> headHistory;
+    const int loopWindow = 100;
+
     bool bodyCollided = false;
+    bool wallCollided = false;
+    bool trapped = false;
+    bool looping = false;
+
+    double distanceToFood = 0;
     while (running) {
         auto head = snake_.getHead();
 
-        // Reward for surviving a step (small incentive to live)
-        score_ += 0.01;
+        // Track head positions
+        headHistory.push_back(head);
+        if (headHistory.size() > loopWindow)
+            headHistory.pop_front();
+
+        // Reward for surviving a step
+//        score_ += 0.01;
         steps++;
         stepsSinceLastFood++;
 
         // Eat food
         if (head.first == food_.first && head.second == food_.second) {
             snake_.grow();
-            score_ += 10.0;  // Strong reward for eating
+            score_ += 1;
             generateFood();
             stepsSinceLastFood = 0;
         }
@@ -60,13 +74,11 @@ void Game::start(double epsilon) {
         // ε-greedy decision
         Direction dir;
         if (dist(rng_) < epsilon) {
-            // Explore: random direction (Left, Forward, Right)
             int action = actionDist(rng_);
             if (action == 0) dir = Direction::Left;
             else if (action == 1) dir = Direction::Right;
             else dir = Direction::None;
         } else {
-            // Exploit: NN's best choice
             dir = inputProvider_->getInput(inputs);
         }
 
@@ -81,15 +93,52 @@ void Game::start(double epsilon) {
             }
         }
 
-        // Termination conditions
-        int maxSteps = std::min(std::max(static_cast<int>(score_ * 1000.0), 1000), 10000);
-        int hungerLimit = 100 + 50 * snake_.getBody().size();  // Scales with length
+        // Loop/trap detection
+        bool isLooping = false;
+        bool isTrapped = false;
 
-        if (steps >= maxSteps ||
-            stepsSinceLastFood > hungerLimit ||
-            snake_.checkCollision(gridW_ / CellSize_, gridH_ / CellSize_, &bodyCollided)) {
+        std::unordered_map<std::pair<int, int>, int, PairHash> positionCounts;
+        for (const auto &pos: headHistory) {
+            positionCounts[pos]++;
+        }
+        for (const auto &[pos, count]: positionCounts) {
+            if (count > 3) {
+                isLooping = true;
+                break;
+            }
+        }
+
+        int hungerLimit = 100 * std::max((int) snake_.getBody().size() - 2, 1);
+        if (stepsSinceLastFood > hungerLimit && isLooping) {
+            isTrapped = true;
+        }
+
+        // Terminate on loop/trap
+        if (isTrapped) {
+            trapped = true;
+            running = false;
+        } else if (isLooping) {
+            if(renderer_ != nullptr)
+                std::cout << "snake looping" << std::endl;
+
+            looping = true;
             running = false;
         }
+
+        // Max steps check
+//        int maxSteps = std::min(std::max((int) (snake_.getBody().size() * 1000), 1000), 10000);
+        int maxSteps = 5000;
+        if (steps >= maxSteps) {
+            running = false;
+        }
+
+        // Collision check
+        if (snake_.checkCollision(gridW_ / CellSize_, gridH_ / CellSize_, &bodyCollided)) {
+            wallCollided = true;
+            running = false;
+        }
+
+        distanceToFood += std::hypot(food_.first - head.first, food_.second - head.second);
 
         // Move snake
         snake_.move();
@@ -101,16 +150,24 @@ void Game::start(double epsilon) {
         }
     }
 
-    // Final fitness shaping (optional, if you're using score_ as fitness)
-    score_ = score_ + std::pow(snake_.getBody().size(), 1.5);
+    distanceToFood = distanceToFood / steps;
+    // Final fitness shaping
+//    score_ = score_ * std::pow(snake_.getBody().size(), 1.5);
+    score_ = 10*std::pow(score_, 1.5) + std::pow(steps, 0.1);
+
+    // Penalize loopers and trap victims harshly
+    if (looping) {
+        score_ *= 0.1;  // Major penalty
+    }
 }
+
 
 void Game::generateFood() {
     int maxX = gridW_ / CellSize_;
     int maxY = gridH_ / CellSize_;
 
     std::pair<int, int> pos;
-    const auto& body = snake_.getBody();
+    const auto &body = snake_.getBody();
 
     do {
         int foodX = std::rand() % maxX;
@@ -125,10 +182,10 @@ void Game::render() {
     renderer_->clear();
 
     // Draw Snake Body
-    const auto& body = snake_.getBody();
+    const auto &body = snake_.getBody();
 
     bool first = true;
-    for (const auto& segment : body) {
+    for (const auto &segment: body) {
         int x = segment.first * CellSize_;
         int y = segment.second * CellSize_;
 
@@ -151,14 +208,48 @@ void Game::render() {
     renderer_->present();
 }
 
+//void Game::getInputs(std::vector<double>& inputs) {
+//    inputs.clear();
+//    const int boxSize = 6;
+//    const int halfBox = boxSize / 2;
+//
+//    auto head = snake_.getHead();
+//    auto [headX, headY] = head;
+//    auto dir = snake_.getDir();  // (dx, dy)
+//
+//    std::unordered_set<std::pair<int, int>, PairHash> occupied(snake_.getBody().begin(), snake_.getBody().end());
+//    auto foodPos = food_;
+//
+//    for (int dy = -halfBox; dy < halfBox; ++dy) {
+//        for (int dx = -halfBox; dx < halfBox; ++dx) {
+//            int x = headX + dx;
+//            int y = headY + dy;
+//
+//            if (x < 0 || y < 0 || x >= gridW_ / CellSize_ || y >= gridH_ / CellSize_) {
+//                inputs.push_back(-1.0); // Wall
+//            } else if (std::make_pair(x, y) == foodPos) {
+//                inputs.push_back(1.0); // Food
+//            } else if (occupied.count({x, y})) {
+//                inputs.push_back(-1.0); // Snake body
+//            } else {
+//                inputs.push_back(0.0); // Empty
+//            }
+//        }
+//    }
+//
+//    // Add direction as last two inputs
+//    inputs.push_back(static_cast<double>(dir.first));  // dx
+//    inputs.push_back(static_cast<double>(dir.second)); // dy
+//}
 
-void Game::getInputs(std::vector<double>& inputs) {
+
+void Game::getInputs(std::vector<double> &inputs) {
     inputs.clear();
 
     auto head = snake_.getHead();
     auto tail = snake_.getBody().back();
     auto dir = snake_.getDir();  // Direction vector (dx, dy)
-    auto& body = snake_.getBody();
+    auto &body = snake_.getBody();
     std::unordered_set<std::pair<int, int>, PairHash> occupied(body.begin() + 1, body.end());
 
     int gridCols = gridW_ / CellSize_;
@@ -243,7 +334,6 @@ void Game::getInputs(std::vector<double>& inputs) {
     std::pair<int, int> right(dir.second, -dir.first);
 
 
-
     auto bodyDistance = [&](std::pair<int, int> delta) -> double {
         int x = head.first, y = head.second;
         double dist = 1.0;
@@ -263,7 +353,7 @@ void Game::getInputs(std::vector<double>& inputs) {
     inputs.push_back(isCollision(head.first + right.first, head.second + right.second) ? 1.0 : 0.0); // right
 
     // Inverse body distance in front/left/right (0 = no obstacle)
-    for (auto d : {dir, left, right}) {
+    for (auto d: {dir, left, right}) {
         double dBody = bodyDistance(d);
         inputs.push_back(dBody < 0 ? 0.0 : 1.0 / dBody);
     }
