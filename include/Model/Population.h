@@ -49,7 +49,7 @@ public:
 
     void train(double epsilon) {
         fitness_ = 0;
-        int numTrain = 5;
+        int numTrain = 2;
 
         double totalScore = 0.0;
         for (int i = 0; i < numTrain; ++i) {
@@ -58,6 +58,7 @@ public:
         }
 
         fitness_ = totalScore / numTrain;
+        model_->setFitness(fitness_);
     }
 
     void play(Renderer *renderer) {
@@ -145,11 +146,11 @@ public:
     void speciate();
 
 private:
-    int size_;
+    int inputs_, outputs_, size_;
     int generation_{0};
     std::vector<std::unique_ptr<Individual>> individuals_;
     std::vector<Species> species_;
     int currMaxSpecies_{0};
     double compatibilityThreshold_ = 0.02;
-    double maxSpecies_ = 20, stagnationThreshold_ = 5;
+    double maxSpecies_ = 10, stagnationThreshold_ = 100;
 };

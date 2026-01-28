@@ -39,7 +39,6 @@ void Game::start(double epsilon) {
     std::uniform_int_distribution<int> actionDist(0, 2);
 
     std::deque<std::pair<int, int>> headHistory;
-    const int loopWindow = 100;
 
     bool bodyCollided = false;
     bool wallCollided = false;
@@ -52,7 +51,7 @@ void Game::start(double epsilon) {
 
         // Track head positions
         headHistory.push_back(head);
-        if (headHistory.size() > loopWindow)
+        if (headHistory.size() > snake_.getBody().size() * 10)
             headHistory.pop_front();
 
         // Reward for surviving a step
@@ -72,15 +71,18 @@ void Game::start(double epsilon) {
         getInputs(inputs);
 
         // ε-greedy decision
+//        Direction dir;
+//        if (dist(rng_) < epsilon) {
+//            int action = actionDist(rng_);
+//            if (action == 0) dir = Direction::Left;
+//            else if (action == 1) dir = Direction::Right;
+//            else dir = Direction::None;
+//        } else {
+//            dir = inputProvider_->getInput(inputs);
+//        }
+
         Direction dir;
-        if (dist(rng_) < epsilon) {
-            int action = actionDist(rng_);
-            if (action == 0) dir = Direction::Left;
-            else if (action == 1) dir = Direction::Right;
-            else dir = Direction::None;
-        } else {
-            dir = inputProvider_->getInput(inputs);
-        }
+        dir = inputProvider_->getInput(inputs);
 
         // Apply direction
         if (dir != Direction::None) {
@@ -118,7 +120,7 @@ void Game::start(double epsilon) {
             trapped = true;
             running = false;
         } else if (isLooping) {
-            if(renderer_ != nullptr)
+            if (renderer_ != nullptr)
                 std::cout << "snake looping" << std::endl;
 
             looping = true;
@@ -138,10 +140,11 @@ void Game::start(double epsilon) {
             running = false;
         }
 
-        distanceToFood += std::hypot(food_.first - head.first, food_.second - head.second);
+//        distanceToFood += std::hypot(food_.first - head.first, food_.second - head.second);
 
         // Move snake
-        snake_.move();
+        if(running)
+            snake_.move();
 
         // Optional rendering
         if (renderer_ != nullptr) {
@@ -150,15 +153,15 @@ void Game::start(double epsilon) {
         }
     }
 
-    distanceToFood = distanceToFood / steps;
+//    distanceToFood = distanceToFood / steps;
     // Final fitness shaping
 //    score_ = score_ * std::pow(snake_.getBody().size(), 1.5);
-    score_ = 10*std::pow(score_, 1.5) + std::pow(steps, 0.1);
+//    score_ = std::pow(score_, 2) * std::pow(steps, 0.1);
 
     // Penalize loopers and trap victims harshly
-    if (looping) {
-        score_ *= 0.1;  // Major penalty
-    }
+//    if (looping) {
+//        score_ *= 0.1;  // Major penalty
+//    }
 }
 
 
@@ -243,121 +246,125 @@ void Game::render() {
 //}
 
 
-void Game::getInputs(std::vector<double> &inputs) {
-    inputs.clear();
-
-    auto head = snake_.getHead();
-    auto tail = snake_.getBody().back();
-    auto dir = snake_.getDir();  // Direction vector (dx, dy)
-    auto &body = snake_.getBody();
-    std::unordered_set<std::pair<int, int>, PairHash> occupied(body.begin() + 1, body.end());
-
-    int gridCols = gridW_ / CellSize_;
-    int gridRows = gridH_ / CellSize_;
-
-    // Snake direction
-    inputs.push_back(dir.first);
-    inputs.push_back(dir.second);
-
-    // Food direction (normalized vector)
-    int dx = food_.first - head.first;
-    int dy = food_.second - head.second;
-    double foodDist = std::hypot(dx, dy);
-
-    // Relative angle to food (sin, cos)
-    double angleToFood = std::atan2(dy, dx);
-    double angleSnake = std::atan2(dir.second, dir.first);
-    double relAngle = angleToFood - angleSnake;
-
-    // Normalize the relative angle to the range [-π, π]
-    relAngle = std::atan2(std::sin(relAngle), std::cos(relAngle));
-
-    auto isCollision = [&](int x, int y) -> bool {
-        return x < 0 || x >= gridCols || y < 0 || y >= gridRows ||
-               std::find(body.begin() + 1, body.end(), std::make_pair(x, y)) != body.end();
-    };
-
-//    int nextX = head.first + dir.first;
-//    int nextY = head.second + dir.second;
-
-    bool bodyInPath = false;
-    auto [x, y] = head;
-    while (true) {
-        x += dir.first;
-        y += dir.second;
-
-        // Stop if out of bounds
-        if (x < 0 || x >= gridCols || y < 0 || y >= gridRows)
-            break;
-
-        // If body is found in this path
-        if (occupied.count({x, y})) {
-            bodyInPath = true;
-            break;
-        }
-
-        // Optional: stop if food is found, you can remove this if you want full ray trace
-        if (x == food_.first && y == food_.second)
-            break;
-    }
-
-    // If food is in front (within ±90°), use sin and cos; else push 0
-    if (std::abs(relAngle) <= M_PI / 2 && !bodyInPath) {
-        inputs.push_back(foodDist > 0 ? dx / foodDist : 0.0);
-        inputs.push_back(foodDist > 0 ? dy / foodDist : 0.0);
-        inputs.push_back(std::sin(relAngle));
-        inputs.push_back(std::cos(relAngle));
-    } else {
-        inputs.push_back(0.0);
-        inputs.push_back(0.0);
-        inputs.push_back(0.0);
-        inputs.push_back(0.0);
-    }
-
-    // Tail relative to food — weighted by proximity
-    int dTx = head.first - tail.first;
-    int dTy = head.second - tail.second;
-    double tailDist = std::hypot(dTx, dTy);
-    double weight = (tailDist > 0.0) ? 1.0 / tailDist : 1.0;
-
-    inputs.push_back(weight * dTx);
-    inputs.push_back(weight * dTy);
-
-    // Relative angle to tail (sin, cos) — also weighted
-    double angleToTail = std::atan2(dTy, dTx);
-    double relTailAngle = angleToTail - angleSnake;
-    inputs.push_back(weight * std::sin(relTailAngle));
-    inputs.push_back(weight * std::cos(relTailAngle));
-
-    // Direction vectors for left and right
-    std::pair<int, int> left(-dir.second, dir.first);
-    std::pair<int, int> right(dir.second, -dir.first);
-
-
-    auto bodyDistance = [&](std::pair<int, int> delta) -> double {
-        int x = head.first, y = head.second;
-        double dist = 1.0;
-        while (true) {
-            x += delta.first;
-            y += delta.second;
-            if (x < 0 || x >= gridCols || y < 0 || y >= gridRows) break;
-            if (std::find(body.begin() + 1, body.end(), std::make_pair(x, y)) != body.end()) return dist;
-            dist += 1.0;
-        }
-        return -1.0;
-    };
-
-    // Danger ahead/left/right: 1 if wall/body in next cell
-    inputs.push_back(isCollision(head.first + dir.first, head.second + dir.second) ? 1.0 : 0.0);   // front
-    inputs.push_back(isCollision(head.first + left.first, head.second + left.second) ? 1.0 : 0.0); // left
-    inputs.push_back(isCollision(head.first + right.first, head.second + right.second) ? 1.0 : 0.0); // right
-
-    // Inverse body distance in front/left/right (0 = no obstacle)
-    for (auto d: {dir, left, right}) {
-        double dBody = bodyDistance(d);
-        inputs.push_back(dBody < 0 ? 0.0 : 1.0 / dBody);
-    }
-}
+//void Game::getInputs(std::vector<double> &inputs) {
+//    inputs.clear();
+//
+//    auto head = snake_.getHead();
+//    auto tail = snake_.getBody().back();
+//    auto dir = snake_.getDir();  // Direction vector (dx, dy)
+//    auto &body = snake_.getBody();
+//    std::unordered_set<std::pair<int, int>, PairHash> occupied(body.begin() + 1, body.end());
+//
+//    int gridCols = gridW_ / CellSize_;
+//    int gridRows = gridH_ / CellSize_;
+//
+//    // Snake direction
+//    inputs.push_back(dir.first);
+//    inputs.push_back(dir.second);
+//
+//    // Food direction (normalized vector)
+//    int dx = food_.first - head.first;
+//    int dy = food_.second - head.second;
+//    double foodDist = std::hypot(dx, dy);
+//
+//    // Relative angle to food (sin, cos)
+//    double angleToFood = std::atan2(dy, dx);
+//    double angleSnake = std::atan2(dir.second, dir.first);
+//    double relAngle = angleToFood - angleSnake;
+//
+//    // Normalize the relative angle to the range [-π, π]
+//    relAngle = std::atan2(std::sin(relAngle), std::cos(relAngle));
+//
+//    auto isCollision = [&](int x, int y) -> bool {
+//        return x < 0 || x >= gridCols || y < 0 || y >= gridRows ||
+//               std::find(body.begin() + 1, body.end(), std::make_pair(x, y)) != body.end();
+//    };
+//
+////    int nextX = head.first + dir.first;
+////    int nextY = head.second + dir.second;
+//
+//    bool bodyInPath = false;
+//    auto [x, y] = head;
+//    while (true) {
+//        x += dir.first;
+//        y += dir.second;
+//
+//        // Stop if out of bounds
+//        if (x < 0 || x >= gridCols || y < 0 || y >= gridRows)
+//            break;
+//
+//        // If body is found in this path
+//        if (occupied.count({x, y})) {
+//            bodyInPath = true;
+//            break;
+//        }
+//
+//        // Optional: stop if food is found, you can remove this if you want full ray trace
+//        if (x == food_.first && y == food_.second)
+//            break;
+//    }
+//
+//    inputs.push_back(foodDist > 0 ? dx / foodDist : 0.0);
+//    inputs.push_back(foodDist > 0 ? dy / foodDist : 0.0);
+//    inputs.push_back(std::sin(relAngle));
+//    inputs.push_back(std::cos(relAngle));
+////    // If food is in front (within ±90°), use sin and cos; else push 0
+////    if (std::abs(relAngle) <= M_PI / 2 && !bodyInPath) {
+////        inputs.push_back(foodDist > 0 ? dx / foodDist : 0.0);
+////        inputs.push_back(foodDist > 0 ? dy / foodDist : 0.0);
+////        inputs.push_back(std::sin(relAngle));
+////        inputs.push_back(std::cos(relAngle));
+////    } else {
+////        inputs.push_back(0.0);
+////        inputs.push_back(0.0);
+////        inputs.push_back(0.0);
+////        inputs.push_back(0.0);
+////    }
+//
+//    // Tail relative to food — weighted by proximity
+//    int dTx = head.first - tail.first;
+//    int dTy = head.second - tail.second;
+//    double tailDist = std::hypot(dTx, dTy);
+//    double weight = (tailDist > 0.0) ? 1.0 / tailDist : 1.0;
+//
+//    inputs.push_back(weight * dTx);
+//    inputs.push_back(weight * dTy);
+//
+//    // Relative angle to tail (sin, cos) — also weighted
+//    double angleToTail = std::atan2(dTy, dTx);
+//    double relTailAngle = angleToTail - angleSnake;
+//    inputs.push_back(weight * std::sin(relTailAngle));
+//    inputs.push_back(weight * std::cos(relTailAngle));
+//
+//    // Direction vectors for left and right
+//    std::pair<int, int> left(-dir.second, dir.first);
+//    std::pair<int, int> right(dir.second, -dir.first);
+//
+//
+//    auto bodyDistance = [&](std::pair<int, int> delta) -> double {
+//        int x = head.first, y = head.second;
+//        double dist = 1.0;
+//        while (true) {
+//            x += delta.first;
+//            y += delta.second;
+//            if (x < 0 || x >= gridCols || y < 0 || y >= gridRows) break;
+//            if (std::find(body.begin() + 1, body.end(), std::make_pair(x, y)) != body.end()) return dist;
+//            dist += 1.0;
+//        }
+//        return -1.0;
+//    };
+//
+//    // Danger ahead/left/right: 1 if wall/body in next cell
+//    inputs.push_back(isCollision(head.first + dir.first, head.second + dir.second) ? 1.0 : 0.0);   // front
+//    inputs.push_back(isCollision(head.first + left.first, head.second + left.second) ? 1.0 : 0.0); // left
+//    inputs.push_back(isCollision(head.first + right.first, head.second + right.second) ? 1.0 : 0.0); // right
+//
+//    // Inverse body distance in front/left/right (0 = no obstacle)
+//    for (auto d: {dir, left, right}) {
+//        double dBody = bodyDistance(d);
+//        inputs.push_back(dBody < 0 ? 0.0 : dBody);
+//    }
+//}
 
 //void Game::getInputs(std::vector<double>& inputs) {
 //    inputs.clear();
@@ -417,62 +424,75 @@ void Game::getInputs(std::vector<double> &inputs) {
 //    }
 //}
 
-//void Game::getInputs(std::vector<double>& inputs) {
-//    inputs.clear();
-//
-//    auto head = snake_.getHead();
-//    auto& body = snake_.getBody();
-//    std::unordered_set<std::pair<int, int>, PairHash> occupied(body.begin() + 1, body.end());
-//
-//    int gridCols = gridW_ / CellSize_;
-//    int gridRows = gridH_ / CellSize_;
-//    double maxDist = std::hypot(gridCols, gridRows);  // Used for normalization
-//
-//    // 8 directions: N, NE, E, SE, S, SW, W, NW
-//    std::vector<std::pair<int, int>> dirs = {
-//            {0, -1},  {1, -1},  {1, 0},  {1, 1},
-//            {0, 1},   {-1, 1},  {-1, 0}, {-1, -1}
-//    };
-//
-//    for (auto& d : dirs) {
-//        int dx = d.first;
-//        int dy = d.second;
-//
-//        double distToWall = 0.0;
-//        double foodInDir = 0.0;
-//        double distToBody = 0.0;
-//
-//        int x = head.first;
-//        int y = head.second;
-//        int steps = 0;
-//
-//        while (true) {
-//            x += dx;
-//            y += dy;
-//            steps++;
-//
-//            // Wall detection — normalized
-//            if (x < 0 || x >= gridCols || y < 0 || y >= gridRows) {
-//                distToWall = steps / maxDist;  // normalized distance
-//                break;
-//            }
-//
-//            // Food detection — binary
-//            if (foodInDir == 0.0 && x == food_.first && y == food_.second) {
-//                foodInDir = 1.0;
-//            }
-//
-//            // Body detection — normalized
-//            if (distToBody == 0.0 && occupied.count({x, y})) {
-//                distToBody = steps / maxDist;  // normalized distance
-//            }
-//        }
-//
-//        inputs.push_back(distToWall);
-//        inputs.push_back(foodInDir);
-//        inputs.push_back(distToBody);
-//    }
-//}
+void Game::getInputs(std::vector<double>& inputs) {
+    inputs.clear();
+
+    auto head = snake_.getHead();
+    auto& body = snake_.getBody();
+    std::unordered_set<std::pair<int, int>, PairHash> occupied(body.begin() + 1, body.end());
+
+    int gridCols = gridW_ / CellSize_;
+    int gridRows = gridH_ / CellSize_;
+    double maxDist = std::hypot(gridCols, gridRows);  // Used for normalization
+
+    // 8 directions: N, NE, E, SE, S, SW, W, NW
+    std::vector<std::pair<int, int>> dirs = {
+            {0, -1},  {1, -1},  {1, 0},  {1, 1},
+            {0, 1},   {-1, 1},  {-1, 0}, {-1, -1}
+    };
+
+    std::vector<std::pair<int, int>> sub_dirs = {
+            {0, -1},  {1, 0},
+            {0, 1},   {-1, 0}
+    };
+
+    for (auto& d : dirs) {
+        int dx = d.first;
+        int dy = d.second;
+
+        double distToWall = 0.0;
+        double foodInDir = 0.0;
+        double distToBody = 0.0;
+
+        int x = head.first;
+        int y = head.second;
+        int steps = 0;
+
+        while (true) {
+            x += dx;
+            y += dy;
+            steps++;
+
+            // Wall detection — normalized
+            if (x < 0 || x >= gridCols || y < 0 || y >= gridRows) {
+                distToWall = steps / maxDist;  // normalized distance
+                break;
+            }
+
+            // Food detection — binary
+            if (foodInDir == 0.0 && x == food_.first && y == food_.second) {
+                foodInDir = 1.0;
+            }
+
+            // Body detection — normalized
+            if (distToBody == 0.0 && occupied.count({x, y})) {
+                distToBody = steps / maxDist;  // normalized distance
+            }
+        }
+
+        inputs.push_back(distToWall);
+        if(std::find(sub_dirs.begin(), sub_dirs.end(), d) != sub_dirs.end())
+            inputs.push_back(foodInDir);
+        inputs.push_back(distToBody);
+    }
+
+    double foodDist = std::hypot(head.first - food_.first, head.second - food_.second);
+
+    inputs.push_back(snake_.getDir().first);
+    inputs.push_back(snake_.getDir().second);
+    inputs.push_back(snake_.getBody().size());
+    inputs.push_back(foodDist/maxDist);
+}
 
 //void Game::getInputs(std::vector<double>& inputs) {
 //    inputs.clear();

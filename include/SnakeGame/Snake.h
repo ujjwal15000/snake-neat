@@ -20,6 +20,6 @@ public:
 
 private:
     std::deque<std::pair<int, int> > body_;
-    std::unordered_set<std::pair<int, int>, PairHash> positions_;
+    std::unordered_multiset<std::pair<int, int>, PairHash> positions_;
     int dirX_, dirY_, growAmount_{0};;
 };

@@ -324,10 +324,16 @@ void Model::mutate() {
 //        }
     }
 
-    if (dist(rng_) < 0.01) { addConnectionMutation(); }   // more links early on
-    if (dist(rng_) < 0.01) { addNodeMutation(); }         // more structure growth
-    if (dist(rng_) < 0.005) { removeConnectionMutation(); } // low but present
-    if (dist(rng_) < 0.005) { removeNodeMutation(); }       // rare to avoid fragmentation
+
+//    if (dist(rng_) < 0.1) { addConnectionMutation(); }   // more links early on
+//    if (dist(rng_) < 0.1) { addNodeMutation(); }         // more structure growth
+//    if (dist(rng_) < 0.05) { removeConnectionMutation(); } // low but present
+//    if (dist(rng_) < 0.05) { removeNodeMutation(); }       // rare to avoid fragmentation
+
+    if (dist(rng_) < mutationConfig_.mutation_rate) { addConnectionMutation(); }
+    if (dist(rng_) < mutationConfig_.mutation_rate) { addNodeMutation(); }
+    if (dist(rng_) < mutationConfig_.mutation_rate) { removeConnectionMutation(); }
+    if (dist(rng_) < mutationConfig_.mutation_rate) { removeNodeMutation(); }
 
 }
 
@@ -391,43 +397,35 @@ double Model::getCompatibilityDistance(Model *other) {
     const auto& conn1 = this->connections_;
     const auto& conn2 = other->connections_;
 
-    std::unordered_set<std::pair<int, int>, PairHash> allKeys;
-    int disjoint = 0;
-    double weightDiffSum = 0.0;
+    std::unordered_set<std::pair<int, int>, PairHash> keys1, keys2;
+    for (const auto& [k, _] : conn1) keys1.insert(k);
+    for (const auto& [k, _] : conn2) keys2.insert(k);
+
     int matching = 0;
+    double weightDiffSum = 0.0;
 
-    for (const auto& [key, conn] : conn1) {
-        allKeys.insert(key);
-        auto it = conn2.find(key);
-        if (it != conn2.end()) {
-            // Matching gene
-            weightDiffSum += std::abs(conn->getWeight() - it->second->getWeight());
+    for (const auto& k : keys1) {
+        if (keys2.count(k)) {
             ++matching;
-        } else {
-            // Disjoint
-            ++disjoint;
+            weightDiffSum += std::abs(conn1.at(k)->getWeight() - conn2.at(k)->getWeight());
         }
     }
 
-    for (const auto& [key, conn] : conn2) {
-        if (allKeys.find(key) == allKeys.end()) {
-            ++disjoint;
-        }
-    }
+    int total = std::max(keys1.size(), keys2.size());
+    int disjoint = 0, excess = 0;
+
+    for (const auto& k : keys1)
+        if (!keys2.count(k)) ++disjoint;
+    for (const auto& k : keys2)
+        if (!keys1.count(k)) ++disjoint;
 
     // Normalize
-    int N = std::max(conn1.size(), conn2.size());
-    if (N < 20) N = 1;  // Avoid division by small values early on
+    if (total < 20) total = 1;
 
     double avgWeightDiff = (matching > 0) ? (weightDiffSum / matching) : 0.0;
 
-    // Coefficients (tune these)
-//    double c1 = 1.0;  // disjoint
-//    double c2 = 0.4;  // weight difference
-    double c1 = 1.0;  // disjoint
-    double c2 = 0.0;  // weight difference
-
-    return (c1 * disjoint / N) + (c2 * avgWeightDiff);
+    double c1 = 1.0, c2 = 0.4;  // Adjust as needed
+    return (c1 * disjoint / total) + (c2 * avgWeightDiff);
 }
 
 

@@ -82,19 +82,20 @@ void Snake::grow() {
 bool Snake::checkCollision(int gridWidth, int gridHeight, bool *bodyCollided) const {
     auto head = getHead();
 
-    if (bodyCollided) *bodyCollided = false;
-
+    // Wall collision
     if (head.first < 0 || head.first >= gridWidth ||
         head.second < 0 || head.second >= gridHeight)
         return true;
 
-    if (std::count(body_.begin() + 1, body_.end(), head) > 0) {
-        if (bodyCollided) *bodyCollided = true;
+    // Self-collision — skip head
+    if (positions_.count(head) > 1) {
+        *bodyCollided = true;
         return true;
     }
 
     return false;
 }
+
 
 const std::deque<std::pair<int, int> > &Snake::getBody() const {
     return body_;
