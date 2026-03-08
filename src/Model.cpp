@@ -330,10 +330,10 @@ void Model::mutate() {
 //    if (dist(rng_) < 0.05) { removeConnectionMutation(); } // low but present
 //    if (dist(rng_) < 0.05) { removeNodeMutation(); }       // rare to avoid fragmentation
 
-    if (dist(rng_) < mutationConfig_.mutation_rate) { addConnectionMutation(); }
-    if (dist(rng_) < mutationConfig_.mutation_rate) { addNodeMutation(); }
-    if (dist(rng_) < mutationConfig_.mutation_rate) { removeConnectionMutation(); }
-    if (dist(rng_) < mutationConfig_.mutation_rate) { removeNodeMutation(); }
+    if (dist(rng_) < 0.05) { addConnectionMutation(); }    // 5% (was 20%)
+    if (dist(rng_) < 0.03) { addNodeMutation(); }          // 3% (was 20%)
+    if (dist(rng_) < 0.02) { removeConnectionMutation(); } // 2% (was 20%)
+    if (dist(rng_) < 0.01) { removeNodeMutation(); }       // 1% (was 20%)
 
 }
 

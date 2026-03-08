@@ -49,7 +49,7 @@ public:
 
     void train(double epsilon) {
         fitness_ = 0;
-        int numTrain = 2;
+        int numTrain = 5;  // More stable fitness estimate (was 2)
 
         double totalScore = 0.0;
         for (int i = 0; i < numTrain; ++i) {

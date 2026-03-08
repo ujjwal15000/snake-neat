@@ -10,9 +10,9 @@ struct DoubleConfig {
     double init_stdev = 0.0;
     double min = -1.0;
     double max = 1.0;
-    double mutation_rate = 0.2;
-    double mutation_power = 0.1;
-    double replace_rate = 0.01;
+    double mutation_rate = 0.8;      // Higher for weights (was 0.2)
+    double mutation_power = 0.2;     // Larger steps (was 0.1)
+    double replace_rate = 0.1;       // More exploration (was 0.01)
 };
 
 static DoubleConfig mutationConfig{};

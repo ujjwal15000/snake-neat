@@ -9,7 +9,7 @@
 
 
 Population::Population(int size) {
-    inputs_ = 24;
+    inputs_ = 11;
     outputs_ = 3;
     size_ = size;
     for (int i = 0; i < size; ++i) {
